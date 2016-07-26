@@ -13,7 +13,20 @@ stealy private key:   0x57ea157ea157ea157ea157ea157ea157ea157ea157ea157ea157ea15
 
 First have a good look at the contracts in `contracts/` directory.
 
-Then let's get started.
+Then, from the command line run
+
+    $ ./mining-node.sh
+
+This starts a private Ethereum node that also mines. There are two accounts `creator` and `stealy`.
+`creator` does the mining and racks up 1000s of ether in minutes.
+Once that is up and running run:
+
+    $ ./attach.sh
+
+This opens a geth console and we can get started. For the following part, cut and paste each
+block and wait for various things (such as mining to occur) before cutting and pasting in the
+following block. Let's start with this block which just sets up a few useful variables and
+functions, and unlocks the two accounts.
 
     var weiInEther = 1000000000000000000;
     var weiInSzabo = 1000000000000;
