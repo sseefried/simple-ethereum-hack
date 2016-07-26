@@ -24,6 +24,8 @@ Then, from the command line run
 This starts a _fresh_ private Ethereum node that also mines.
 There are two accounts `creator` and `stealy`. `creator` does the mining and racks up 1000s of
 ether in minutes. Running it again will recreate the node from scratch, deleting all old blocks.
+The blockchain will go in directory `geth-data/`.
+
 Once it is up and running run the following in a new terminal:
 
     $ ./attach.sh
