@@ -1,9 +1,10 @@
 #!/bin/bash
 
+THIS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+DATADIR=$THIS_DIR/data
+#############
 
 
-
-DATADIR=/Users/sseefried/tmp/geth-local/data
 GETH="$HOME/code/eth/go-ethereum/build/bin/geth --datadir $DATADIR"
 rm -rf $DATADIR
 mkdir -p $DATADIR
@@ -25,11 +26,11 @@ echo >> password.txt
 
 
 COINBASE_ADDR=$(getAddr coinbase.key)
-USER_ADDR=$(getAddr user.key)
+STEAL_ADDR=$(getAddr stealy.key)
 
 echo "[+] Creating accounts" | tee -a $LOG
 echo "coinbase: $COINBASE_ADDR" > addresses.txt
-echo "user:     $USER_ADDR" >> addresses.txt
+echo "stealy:"  $STEAL_ADDR >> addresses.txt
 cat addresses.txt | tee -a $LOG
 
 echo
