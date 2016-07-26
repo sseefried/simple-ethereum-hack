@@ -1,7 +1,6 @@
 /* The proxy contract is required to declare an interface
    that PrepWithdraws understands */
 contract TWIProxy {
-  event Log(string msg ,address from, address to, uint value);
   mapping(address => uint) public balanceOf;
   uint public totalSupply;
 
