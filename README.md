@@ -13,15 +13,18 @@ stealy private key:   0x57ea157ea157ea157ea157ea157ea157ea157ea157ea157ea157ea15
 
 # Instructions to carry out the hack
 
+Requirement: geth v1.4.10 or greater
+
 First have a good look at the contracts in `contracts/` directory.
 
 Then, from the command line run
 
     $ ./mining-node.sh
 
-This starts a private Ethereum node that also mines. There are two accounts `creator` and `stealy`.
-`creator` does the mining and racks up 1000s of ether in minutes.
-Once that is up and running run:
+This starts a _fresh_ private Ethereum node that also mines.
+There are two accounts `creator` and `stealy`. `creator` does the mining and racks up 1000s of
+ether in minutes. Running it again will recreate the node from scratch, deleting all old blocks.
+Once it is up and running run the following in a new terminal:
 
     $ ./attach.sh
 

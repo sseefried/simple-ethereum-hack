@@ -4,8 +4,13 @@ THIS_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 DATADIR=$THIS_DIR/data
 #############
 
+which geth > /dev/null 2>&1
+if [ ${PIPESTATUS[0]} -ne 0 ]; then
+  echo "Could not find 'geth' on path"
+  exit 1
+fi
 
-GETH="$HOME/code/eth/go-ethereum/build/bin/geth --datadir $DATADIR"
+GETHCMD="geth --datadir $DATADIR"
 rm -rf $DATADIR
 mkdir -p $DATADIR
 ID="SeanGeth"
@@ -15,12 +20,12 @@ LOG=mining-node.log
 ################
 
 function getAddr {
-  RES=$($GETH --password password.txt account import $1)
+  RES=$($GETHCMD --password password.txt account import $1)
   echo "$RES" | sed 's/^[^{]*{\([a-f0-9]*\)}.*$/\1/'
 }
 
 echo "[+] Creating genesis block" | tee $LOG
-$GETH init ./genesis.json 2>&1 | tee -a $LOG
+$GETHCMD init ./genesis.json 2>&1 | tee -a $LOG
 echo "test" > password.txt
 echo >> password.txt
 
@@ -37,7 +42,7 @@ echo
 echo
 echo
 
-$GETH \
+$GETHCMD \
   --identity=$ID  \
   --port=30303   \
   --rpc \
