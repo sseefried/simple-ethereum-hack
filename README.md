@@ -188,34 +188,9 @@ Web3
   the transaction fails.
 
 
-Failed trace:
+# Faux stack traces
 
-  value    | totalSupply |A.val|  A  | S
------------+-------------+-----+-----+-----
-  1000        1000          2     0     0        A: twi.deposit.value(2)(2)
-  1002        1000          0     0     0          TWI: balanceOf[A] += amount
-  1002        1000          0     2     0          TWI: totalSupply += amount
-  1002        1002          0     2     0          TWI: checkInvariants()
-  1002        1002          0     2     0        A: twi.withdraw
-  1002        1002          0     2     0          TWI: balance = balanceOf[A]    (== 2)
-  1002        1002          0     2     0          TWI: A.call.value(balance)()
-  1000        1002          2     2     0            A: twi.transfer.value(2)(stealy, 2)
-  1002        1002          0     2     0              TWI: balanceOf[S] += value;
-  1002        1002          0     2     2              TWI: balanceOf[A] -= value;
-  1002        1002          0     0     2              TWI: checkInvariants()
-  1002        1002          0     0     2            A: twi.withdraw()
-  1002        1002          0     0     2              TWI: balance = balanceOf[A]  (== 0)
-  1002        1002          0     0     2              TWI: A.call.value(balance)()
-  1000        1002          0     0     2                A: return
-  1000        1002          0     0     2              TWI: totalSupply -= balance (does nothing)
-  1000        1002          0     0     2              TWI: balanceOf[A] = 0 (does nothing)
-  1000        1002          0     0     2            A: return
-  1000        1002          0     0     2          TWI: totalSupply -= balance
-  1000        1000          0     0     2          TWI: balanceOf[A] = 0 (does nothing)
-  1000        1000          0     0     2
-
-A has been drained of value but stealy has tokens
-
+I used these to work out how the hack worked.
 
 Shorthand
 
@@ -225,7 +200,7 @@ A.val       = ether balance of A in szabos
 A           = balanceOf[attack.address]
 S           = balanceOf[stealy]
 
-
+```
   value    | totalSupply |A.val|  A  | S | Ops                 | Trace
 -----------+-------------+-----+-----+---+---------------------+-------------------------------------
   1000        1000          2     0    0  [value+2,A.val-2]    | A: twi.deposit.value(2)(2)
@@ -250,10 +225,11 @@ S           = balanceOf[stealy]
   1002         998          0     0    2  [A=0]                |   TWI: balanceOf[A] = 0 (does nothing)
   1002         998          0     0    2  []                   |   TWI: checkInvariants  // succeeds
   1002         998          0     0    2
+```
 
 This is just the beginning. Now we need to perform a "race to empty" using S as a contract.
 
-
+```
 value    | totalSupply |S.val|  S | Ops                    | Trace
 ---------+-------------+-----+----+------------------------+-------------------
  1002         998         0     2    []                    | S: twi.withdraw()
@@ -271,11 +247,12 @@ value    | totalSupply |S.val|  S | Ops                    | Trace
   998         994         4     0    [S=0]                 |   TWI: balanceOf[S] = 0  // does nothing
   998         994         4     0    []                    |   TWI: checkInvariants // succeeds
   998         994         4     0
+```
 
 This is nice, but I wonder if you could recursively call this many, many times and just keep
 getting value out...
 
-
+```
 value    | totalSupply |S.val|  S | Ops                    | Trace
 ---------+-------------+-----+----+------------------------+-------------------
  1002         998         0     2    []                    | S: twi.withdraw()
@@ -292,15 +269,13 @@ value    | totalSupply |S.val|  S | Ops                    | Trace
   996         996         6     2    [S=0]                 |           TWI: balanceOf[S] = 0
   996         996         6     0    []                    |           TWI: checkInvariants() // succeeds... JUST (wouldn't succeed if you did another recursive call)
 ... rest omitted ...
-
-
-
+```
 
 The answer is no. The maximum withdraw is triple.
 
 Is a short original attack possible?
 
-
+```
   value    | totalSupply |A.val|  A  | S | Ops                 | Trace
 -----------+-------------+-----+-----+---+---------------------+-------------------------------------
   1000        1000          2     0    0  [value+2,A.val-2]    | A: twi.deposit.value(2)(2)
@@ -319,6 +294,7 @@ Is a short original attack possible?
   1002        1000          0     0    2  [A=0]                |   TWI: balanceOf[A] = 0 // does nothing
   1002        1000          0     0    2  []                   |   TWI: checkInvariants // succeeds
   1002        1000          0     0    2
+```
 
 Hmmm, not nearly as good but it still works. Should allow a double withdraw.
 
@@ -328,6 +304,7 @@ Using all this data I'd like to make the following conjecture:
 
 Let's look at 3 withdraw calls before transfer
 
+```
   value    | totalSupply |A.val|  A  | S | Ops                 | Trace
 -----------+-------------+-----+-----+---+---------------------+-------------------------------------
   1000        1000          2     0    0  [value+2,A.val-2]    | A: twi.deposit.value(2)(2)
@@ -360,8 +337,9 @@ Let's look at 3 withdraw calls before transfer
   1002         996          0     0    2  [A=0]                |   TWI: balanceOf[A] = 0 // does nothing
   1002         996          0     0    2  []                   |   TWI: checkInvariants() // succeeds
   1002         996          0     0    2
+```
 
-The differential between totalSupply and value is now even larger, allowing us to withdraw 4
+The differential between `totalSupply` and `value` is now even larger, allowing us to withdraw 4
 times using the S contract!
 
 
