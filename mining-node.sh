@@ -44,7 +44,7 @@ echo
 
 $GETHCMD \
   --identity=$ID  \
-  --port=30303   \
+  --port=25000   \
   --rpc \
   --etherbase $COINBASE_ADDR \
   --rpcapi "admin,db,eth,debug,miner,net,shh,txpool,personal,web3" \
