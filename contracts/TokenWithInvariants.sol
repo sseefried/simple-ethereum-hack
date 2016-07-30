@@ -6,6 +6,9 @@ contract TokenWithInvariants {
   uint public conversion = 1 szabo;
 
   modifier checkInvariants {
+    /* Check invariants before AND after
+     * Even with this, contract is still vunerable */
+    if (this.balance/conversion < totalSupply) throw;
     _
     if (this.balance/conversion < totalSupply) throw;
   }
