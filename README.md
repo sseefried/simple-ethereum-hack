@@ -4,6 +4,9 @@ This repo presents a simple reentrancy hack on a contract that has _never been p
 ETH (or ETC) blockchain. Nevertheless it illustrates the kind of bug that was exploited by
 the attacker of the DAO.
 
+The instructions in this README will allow you to set up a private Ethereum node (with mining),
+publish a contract and then perform an attack on the contract.
+
 # Accounts
 
 ```
