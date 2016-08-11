@@ -1,3 +1,9 @@
+# Introduction
+
+This repo presents a simple reentrancy hack on a contract that has _never been published_ on the
+ETH (or ETC) blockchain. Nevertheless it illustrates the kind of bug that was exploited by
+the attacker of the DAO.
+
 # Accounts
 
 ```
@@ -218,10 +224,10 @@ Shorthand:
   1002        1002          0     2    0  []                   |   TWI: checkInvariants() // suceeds
   1002        1002          0     2    0  []                   | P: twi.withdraw
   1002        1002          0     2    0  []                   |   TWI: balance = balanceOf[P]    (== 2)
-  1002        1002          0     2    0  [value-2,P.val+2]    |   TWI: A.call.value(balance)()
+  1002        1002          0     2    0  [value-2,P.val+2]    |   TWI: P.call.value(balance)()
   1000        1002          2     2    0  []                   |     P: twi.withdraw()
   1000        1002          2     2    0  []                   |       TWI: balance = balanceOf[P]  (==2)
-  1000        1002          2     2    0  [value-2,P.val+2]    |       TWI: A.call.value(balance)()
+  1000        1002          2     2    0  [value-2,P.val+2]    |       TWI: P.call.value(balance)()
    998        1002          4     2    0  [value+4,P.val-4]    |         P: twi.transfer.value(4)(raceToEmpty, 2)
   1002        1002          0     2    0  [R+2]                |           TWI: balanceOf[R] += value
   1002        1002          0     2    2  [P-2]                |           TWI: balanceOf[P] -= value
@@ -246,7 +252,7 @@ value    | totalSupply |R.val|  R | Ops                    | Trace
  1002         998         0     2    [value-2, R.val+2]    |   TWI: S.call.value(balance)()
  1000         998         2     2    []                    |     R: twi.withdraw()
  1000         998         2     2    []                    |       TWI: balance = balanceOf[R] // balance = 2
- 1000         998         2     2    [value-2, R.val+2]    |       TWI: A.call.value(balance)()
+ 1000         998         2     2    [value-2, R.val+2]    |       TWI: P.call.value(balance)()
   998         998         4     2    []                    |         R: return
   998         998         4     2    [totalSupply-2]       |       TWI: totalSupply -= balance
   998         996         4     2    [R = 0]               |       TWI: balanceOf[R] = 0
@@ -293,7 +299,7 @@ Is a short original attack possible?
   1002        1002          0     2    0  []                   |   TWI: checkInvariants() // suceeds
   1002        1002          0     2    0  []                   | P: twi.withdraw
   1002        1002          0     2    0  []                   |   TWI: balance = balanceOf[P]    (== 2)
-  1002        1002          0     2    0  [value-2,P.val+2]    |   TWI: A.call.value(balance)()
+  1002        1002          0     2    0  [value-2,P.val+2]    |   TWI: P.call.value(balance)()
   1000        1002          2     2    0  [value+2]            |     A.transfer.value(2)(raceToEmpty,2)
   1002        1002          0     2    0  [R+2]                |       TWI: balanceOf[R] += value
   1002        1002          0     2    2  [P-2]                |       TWI: balanceOf[P] -= value
@@ -322,13 +328,13 @@ Let's look at 3 withdraw calls before transfer
   1002        1002          0     2    0  []                   |   TWI: checkInvariants() // suceeds
   1002        1002          0     2    0  []                   | P: twi.withdraw
   1002        1002          0     2    0  []                   |   TWI: balance = balanceOf[P]    // == 2
-  1002        1002          0     2    0  [value-2,P.val+2]    |   TWI: A.call.value(balance)()
+  1002        1002          0     2    0  [value-2,P.val+2]    |   TWI: P.call.value(balance)()
   1000        1002          2     2    0  []                   |     P: twi.withdraw()
   1000        1002          2     2    0  []                   |       TWI: balance = balanceOf[P]  // ==2
-  1000        1002          2     2    0  [value-2,P.val+2]    |       TWI: A.call.value(balance)()
+  1000        1002          2     2    0  [value-2,P.val+2]    |       TWI: P.call.value(balance)()
    998        1002          4     2    0  []                   |         P: twi.withdraw()
    998        1002          4     2    0  []                   |           TWI: balance = balanceOf[P] // == 2
-   998        1002          4     2    0  [value-2,P.val+2]    |           TWI: A.call.value(balance)()
+   998        1002          4     2    0  [value-2,P.val+2]    |           TWI: P.call.value(balance)()
    996        1002          6     2    0  [value+6]            |             A.transfer.value(6)(raceToEmpty, 2)
   1002        1002          0     2    0  [R+2]                |               TWI: balanceOf[R] += value
   1002        1002          0     2    2  [P-2]                |               TWI: balanceOf[P] -= value
